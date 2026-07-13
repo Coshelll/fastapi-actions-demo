@@ -14,3 +14,11 @@ def health():
 @app.get("/date")
 def date():
     return {"current_date": datetime.now().isoformat()}
+
+@app.get("/convert/{timezone}")
+def convert_time(timezone: str):
+    import pytz
+    from datetime import datetime
+    tz = pytz.timezone(timezone)
+    now = datetime.now(tz)
+    return {"timezone": timezone, "current_time": now.isoformat()}    
