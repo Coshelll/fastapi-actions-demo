@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI + Docker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 700px;
+            width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        h1 {
+            color: #fff;
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            text-align: center;
+            font-size: 1rem;
+            margin-bottom: 24px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .card h3 {
+            color: #fff;
+            font-size: 1rem;
+            margin-bottom: 12px;
+        }
+        .row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .row input, .row select {
+            flex: 1;
+            min-width: 80px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+            font-size: 1rem;
+        }
+        .row input:focus, .row select:focus {
+            outline: none;
+            border-color: #6c5ce7;
+        }
+        .row select option {
+            background: #302b63;
+            color: #fff;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            width: 100%;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(108, 92, 231, 0.4);
+        }
+        .result {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #4caf50;
+            font-size: 1rem;
+            font-weight: 500;
+            text-align: center;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .footer {
+            margin-top: 24px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 0.8rem;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-ok { background: #4caf50; }
+        .status-err { background: #f44336; }
+        .status-text {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+        .flex-center {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🚀 FastAPI + Docker</h1>
+    <p class="subtitle">Приложение работает в контейнере</p>
+
+    <div class="card">
+        <div class="flex-center">
+            <span class="status-dot status-ok" id="statusDot"></span>
+            <span class="status-text" id="statusText">Проверка статуса...</span>
+        </div>
+        <div id="infoBlock" style="margin-top:12px; color:rgba(255,255,255,0.7); font-size:0.9rem; white-space:pre-wrap;"></div>
+    </div>
+
+    <div class="card">
+        <h3>🧮 Калькулятор</h3>
+        <div class="row">
+            <input type="number" id="numA" placeholder="Число A" value="10">
+            <select id="operation">
+                <option value="multiply">✖️ Умножить</option>
+                <option value="divide">➗ Разделить</option>
+            </select>
+            <input type="number" id="numB" placeholder="Число B" value="5">
+        </div>
+        <button id="calcBtn">Посчитать</button>
+        <div class="result" id="calcResult">Ожидание...</div>
+    </div>
+
+    <div class="card">
+        <h3>🕒 Текущее время</h3>
+        <button id="timeBtn">Обновить время</button>
+        <div class="result" id="timeResult">Нажмите кнопку</div>
+    </div>
+
+    <div class="footer">FastAPI + Docker — учебный проект</div>
+</div>
+
+<script>
+    const API_BASE = '/api';
+
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const infoBlock = document.getElementById('infoBlock');
+    const calcResult = document.getElementById('calcResult');
+    const timeResult = document.getElementById('timeResult');
+
+    async function checkHealth() {
+        try {
+            const res = await fetch(`${API_BASE}/health`);
+            if (!res.ok) throw new Error('Ошибка');
+            const data = await res.json();
+            statusDot.className = 'status-dot status-ok';
+            statusText.textContent = '✅ Контейнер работает';
+            infoBlock.textContent = `🕒 ${data.timestamp || ''}`;
+        } catch {
+            statusDot.className = 'status-dot status-err';
+            statusText.textContent = '❌ Ошибка подключения';
+            infoBlock.textContent = 'Сервер недоступен';
+        }
+    }
+
+    async function calc() {
+        const a = document.getElementById('numA').value;
+        const b = document.getElementById('numB').value;
+        const op = document.getElementById('operation').value;
+        if (!a || !b) {
+            calcResult.textContent = '❌ Введите оба числа!';
+            calcResult.style.color = '#f44336';
+            return;
+        }
+        calcResult.textContent = '⏳ Вычисление...';
+        calcResult.style.color = '#aaa';
+        try {
+            const res = await fetch(`${API_BASE}/${op}/${a}/${b}`);
+            const data = await res.json();
+            if (res.ok) {
+                calcResult.textContent = `Результат: ${data.result}`;
+                calcResult.style.color = '#4caf50';
+            } else {
+                calcResult.textContent = `❌ ${data.error || 'Ошибка'}`;
+                calcResult.style.color = '#f44336';
+            }
+        } catch {
+            calcResult.textContent = '❌ Ошибка запроса';
+            calcResult.style.color = '#f44336';
+        }
+    }
+
+    async function getTime() {
+        timeResult.textContent = '⏳ Загрузка...';
+        timeResult.style.color = '#aaa';
+        try {
+            const res = await fetch(`${API_BASE}/time`);
+            const data = await res.json();
+            timeResult.textContent = `🕒 ${data.current_time || '—'}`;
+            timeResult.style.color = '#4caf50';
+        } catch {
+            timeResult.textContent = '❌ Ошибка';
+            timeResult.style.color = '#f44336';
+        }
+    }
+
+    document.getElementById('calcBtn').addEventListener('click', calc);
+    document.getElementById('timeBtn').addEventListener('click', getTime);
+
+    checkHealth();
+    setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>
